@@ -18,7 +18,10 @@ export async function GET(request: Request) {
           first_name,
           last_name,
           grade_level,
-          section
+          section,
+          photo_url,
+          profile_picture,
+          picture
         )
       `)
       .order('scan_time', { ascending: false })
@@ -52,6 +55,7 @@ export async function GET(request: Request) {
       scanTime: record.scan_time || record.created_at,
       status: record.status || 'Present',
       rfidCard: record.rfid_card || 'N/A',
+      studentPhoto: record.students?.photo_url || record.students?.profile_picture || record.students?.picture || null,
     }))
 
     return NextResponse.json({

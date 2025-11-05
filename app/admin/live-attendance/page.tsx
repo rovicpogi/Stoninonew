@@ -11,6 +11,9 @@ import {
   Radio,
   ArrowLeft,
   X,
+  User,
+  Clock,
+  Calendar,
 } from "lucide-react"
 
 interface AttendanceRecord {
@@ -22,12 +25,14 @@ interface AttendanceRecord {
   scanTime: string
   status: string
   rfidCard: string
+  studentPhoto?: string
 }
 
 export default function LiveAttendancePage() {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
   const [loadingAttendance, setLoadingAttendance] = useState(false)
   const [lastScanTime, setLastScanTime] = useState<string | null>(null)
+  const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null)
 
   const fetchLiveAttendance = useCallback(async (onlyNew = false) => {
     setLoadingAttendance(true)
@@ -46,7 +51,12 @@ export default function LiveAttendancePage() {
             const newRecords = result.records.filter(
               (newRec: AttendanceRecord) => !prev.some((p) => p.id === newRec.id)
             )
-            return [...newRecords, ...prev].slice(0, 50) // Keep only latest 50
+            const updated = [...newRecords, ...prev].slice(0, 50)
+            // Auto-select the newest record if available
+            if (newRecords.length > 0 && !selectedRecord) {
+              setSelectedRecord(newRecords[0])
+            }
+            return updated
           })
           // Update last scan time
           if (result.records[0]) {
@@ -57,6 +67,8 @@ export default function LiveAttendancePage() {
           setAttendanceRecords(result.records)
           if (result.records.length > 0) {
             setLastScanTime(result.records[0].scanTime)
+            // Auto-select first record
+            setSelectedRecord(result.records[0])
           }
         }
       }
@@ -65,7 +77,7 @@ export default function LiveAttendancePage() {
     } finally {
       setLoadingAttendance(false)
     }
-  }, [lastScanTime])
+  }, [lastScanTime, selectedRecord])
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp)
@@ -79,8 +91,22 @@ export default function LiveAttendancePage() {
   const formatDate = (timestamp: string) => {
     const date = new Date(timestamp)
     return date.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })
+  }
+
+  const formatDateTime = (timestamp: string) => {
+    const date = new Date(timestamp)
+    return date.toLocaleString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
       month: "short",
       day: "numeric",
+      year: "numeric",
     })
   }
 
@@ -152,100 +178,197 @@ export default function LiveAttendancePage() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="container mx-auto px-4 py-8">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-red-800">Real-time RFID Scan Monitoring</CardTitle>
-            <CardDescription>
-              New scans appear automatically. Updates every 2 seconds.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {/* Status indicator */}
-              <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-200">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="text-sm font-medium text-green-800">Monitoring Active</span>
+      {/* Main Content - Split Layout */}
+      <div className="container mx-auto px-4 py-8 h-[calc(100vh-140px)]">
+        <div className="grid grid-cols-4 gap-4 h-full">
+          {/* Left Side - Monitoring List (1/4 = 25%) */}
+          <div className="col-span-1 flex flex-col">
+            <Card className="flex-1 flex flex-col overflow-hidden">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm text-red-800 flex items-center gap-2">
+                  <Radio className="w-4 h-4 text-red-600" />
+                  Live Scans
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  {attendanceRecords.length} records
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex-1 overflow-hidden flex flex-col p-0">
+                {/* Status indicator */}
+                <div className="px-4 pb-3">
+                  <div className="flex items-center gap-2 p-2 bg-green-50 rounded-lg border border-green-200">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="text-xs font-medium text-green-800">Active</span>
+                  </div>
                 </div>
-                <Badge className="bg-green-100 text-green-800">
-                  {attendanceRecords.length} Recent Scans
-                </Badge>
-              </div>
 
-              {/* Attendance Records List */}
-              <div className="border rounded-lg max-h-[70vh] overflow-y-auto">
-                {loadingAttendance && attendanceRecords.length === 0 ? (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="text-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-800 mx-auto mb-4"></div>
-                      <p className="text-gray-600">Loading attendance records...</p>
+                {/* Attendance Records List */}
+                <div className="flex-1 overflow-y-auto px-4 pb-4">
+                  {loadingAttendance && attendanceRecords.length === 0 ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-800 mx-auto mb-2"></div>
+                        <p className="text-xs text-gray-600">Loading...</p>
+                      </div>
                     </div>
-                  </div>
-                ) : attendanceRecords.length === 0 ? (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="text-center">
-                      <Radio className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-600">No attendance records yet</p>
-                      <p className="text-sm text-gray-500 mt-2">Waiting for RFID scans...</p>
+                  ) : attendanceRecords.length === 0 ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="text-center">
+                        <Radio className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-xs text-gray-600">No scans yet</p>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="divide-y">
-                    {attendanceRecords.map((record, index) => (
-                      <div
-                        key={record.id}
-                        className={`p-4 hover:bg-gray-50 transition-colors ${
-                          index === 0 && attendanceRecords.length > 1 ? "bg-green-50" : ""
-                        }`}
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                                <Users className="w-5 h-5 text-red-600" />
-                              </div>
-                              <div>
-                                <p className="font-semibold text-gray-900">{record.studentName}</p>
-                                <p className="text-sm text-gray-600">
-                                  {record.studentId} • {record.gradeLevel} • {record.section}
-                                </p>
-                              </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {attendanceRecords.map((record, index) => (
+                        <div
+                          key={record.id}
+                          onClick={() => setSelectedRecord(record)}
+                          className={`p-3 rounded-lg cursor-pointer transition-all border ${
+                            selectedRecord?.id === record.id
+                              ? "bg-red-100 border-red-300 shadow-sm"
+                              : "bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300"
+                          } ${
+                            index === 0 && attendanceRecords.length > 1 ? "ring-2 ring-green-400 ring-opacity-50" : ""
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                              <User className="w-4 h-4 text-red-600" />
                             </div>
-                          </div>
-                          <div className="flex flex-col sm:items-end gap-2">
-                            <div className="flex items-center gap-2">
-                              <Badge className="bg-green-100 text-green-800">{record.status}</Badge>
-                              {index === 0 && attendanceRecords.length > 1 && (
-                                <Badge className="bg-blue-100 text-blue-800 animate-pulse">NEW</Badge>
-                              )}
-                            </div>
-                            <div className="text-right">
-                              <p className="text-sm font-medium text-gray-900">
-                                {formatTime(record.scanTime)}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-gray-900 truncate">
+                                {record.studentName}
                               </p>
-                              <p className="text-xs text-gray-500">{formatDate(record.scanTime)}</p>
+                              <p className="text-xs text-gray-500 truncate">
+                                {record.studentId}
+                              </p>
                             </div>
+                            {index === 0 && attendanceRecords.length > 1 && (
+                              <Badge className="bg-blue-100 text-blue-800 text-xs px-1 py-0">NEW</Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between mt-1">
+                            <span className="text-xs text-gray-600">{record.gradeLevel}</span>
+                            <span className="text-xs font-medium text-gray-900">
+                              {formatTime(record.scanTime)}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right Side - Student Details (3/4 = 75%) */}
+          <div className="col-span-3 flex flex-col">
+            <Card className="flex-1 flex flex-col">
+              <CardHeader>
+                <CardTitle className="text-red-800">Student Information</CardTitle>
+                <CardDescription>
+                  Click on a scan record to view details
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex-1 flex items-center justify-center">
+                {selectedRecord ? (
+                  <div className="w-full max-w-2xl">
+                    <div className="text-center space-y-6">
+                      {/* Student Photo */}
+                      <div className="flex justify-center">
+                        <div className="relative">
+                          {selectedRecord.studentPhoto ? (
+                            <Image
+                              src={selectedRecord.studentPhoto}
+                              alt={selectedRecord.studentName}
+                              width={200}
+                              height={200}
+                              className="rounded-full border-4 border-red-800 shadow-lg"
+                            />
+                          ) : (
+                            <div className="w-48 h-48 rounded-full border-4 border-red-800 bg-red-100 flex items-center justify-center shadow-lg">
+                              <User className="w-24 h-24 text-red-600" />
+                            </div>
+                          )}
+                          <div className="absolute -bottom-2 -right-2 bg-green-500 border-4 border-white rounded-full w-8 h-8 flex items-center justify-center">
+                            <Radio className="w-4 h-4 text-white" />
                           </div>
                         </div>
                       </div>
-                    ))}
+
+                      {/* Student Name */}
+                      <div>
+                        <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                          {selectedRecord.studentName}
+                        </h2>
+                        <p className="text-lg text-gray-600">Student ID: {selectedRecord.studentId}</p>
+                      </div>
+
+                      {/* Student Details */}
+                      <div className="grid grid-cols-2 gap-6 mt-8">
+                        <div className="bg-gray-50 rounded-lg p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Users className="w-5 h-5 text-red-600" />
+                            <span className="text-sm font-medium text-gray-600">Grade Level</span>
+                          </div>
+                          <p className="text-xl font-semibold text-gray-900">{selectedRecord.gradeLevel}</p>
+                        </div>
+
+                        <div className="bg-gray-50 rounded-lg p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Users className="w-5 h-5 text-red-600" />
+                            <span className="text-sm font-medium text-gray-600">Section</span>
+                          </div>
+                          <p className="text-xl font-semibold text-gray-900">{selectedRecord.section}</p>
+                        </div>
+                      </div>
+
+                      {/* Scan Time */}
+                      <div className="bg-red-50 rounded-lg p-6 border-2 border-red-200">
+                        <div className="flex items-center justify-center gap-3 mb-3">
+                          <Clock className="w-6 h-6 text-red-600" />
+                          <span className="text-lg font-semibold text-red-800">Scan Time</span>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-2xl font-bold text-gray-900">
+                            {formatTime(selectedRecord.scanTime)}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {formatDate(selectedRecord.scanTime)}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-2">
+                            RFID Card: {selectedRecord.rfidCard}
+                          </p>
+                        </div>
+                        <div className="mt-4 pt-4 border-t border-red-200">
+                          <Badge className="bg-green-100 text-green-800 text-sm px-3 py-1">
+                            {selectedRecord.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <User className="w-24 h-24 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500 text-lg">Select a scan record to view student details</p>
+                    <p className="text-gray-400 text-sm mt-2">Click on any record from the left panel</p>
                   </div>
                 )}
-              </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
 
-              {/* Footer info */}
-              <div className="pt-4 border-t">
-                <p className="text-xs text-gray-500 text-center">
-                  Updates every 2 seconds • Latest scan at the top • Keep this window open for continuous monitoring
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Footer info */}
+        <div className="mt-4 text-center">
+          <p className="text-xs text-gray-500">
+            Updates every 2 seconds • Latest scan at the top • Keep this window open for continuous monitoring
+          </p>
+        </div>
       </div>
     </div>
   )
 }
-
