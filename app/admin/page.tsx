@@ -11,13 +11,6 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
   LayoutDashboard,
   Users,
   Clock,
@@ -68,7 +61,6 @@ export default function AdminPortal() {
   const [loadingStats, setLoadingStats] = useState(false)
   const [loadingStudents, setLoadingStudents] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [liveAttendanceOpen, setLiveAttendanceOpen] = useState(false)
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
   const [loadingAttendance, setLoadingAttendance] = useState(false)
   const [lastScanTime, setLastScanTime] = useState<string | null>(null)
@@ -191,7 +183,7 @@ export default function AdminPortal() {
 
   // Live attendance polling
   useEffect(() => {
-    if (!liveAttendanceOpen) return
+    if (activeTab !== "live-attendance") return
 
     // Initial fetch
     fetchLiveAttendance()
@@ -202,7 +194,7 @@ export default function AdminPortal() {
     }, 2000)
 
     return () => clearInterval(interval)
-  }, [liveAttendanceOpen, fetchLiveAttendance])
+  }, [activeTab, fetchLiveAttendance])
 
   if (isLoading) {
     return (
@@ -250,14 +242,6 @@ export default function AdminPortal() {
             </div>
             <div className="flex items-center justify-between md:justify-end gap-2 w-full md:w-auto">
               <div className="hidden md:flex items-center space-x-4">
-                <Button
-                  onClick={() => setLiveAttendanceOpen(true)}
-                  variant="outline"
-                  className="border-red-800 text-red-800 hover:bg-red-800 hover:text-white bg-transparent"
-                >
-                  <Radio className="w-4 h-4 mr-2" />
-                  Live Attendance
-                </Button>
                 <div className="text-right">
                   <p className="font-medium text-red-800">
                     {adminData?.FirstName} {adminData?.LastName}
@@ -266,14 +250,6 @@ export default function AdminPortal() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Button
-                  onClick={() => setLiveAttendanceOpen(true)}
-                  variant="outline"
-                  size="sm"
-                  className="md:hidden border-red-800 text-red-800 hover:bg-red-800 hover:text-white bg-transparent"
-                >
-                  <Radio className="w-4 h-4" />
-                </Button>
                 <Button
                   onClick={handleLogout}
                   variant="outline"
@@ -298,7 +274,7 @@ export default function AdminPortal() {
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 mb-8 gap-2 h-auto">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-6 mb-8 gap-2 h-auto">
             <TabsTrigger 
               value="dashboard" 
               className="data-[state=active]:bg-red-800 data-[state=active]:text-white text-xs md:text-sm py-2"
@@ -338,6 +314,14 @@ export default function AdminPortal() {
               <Settings className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
               <span className="hidden sm:inline">Settings</span>
               <span className="sm:hidden">Settings</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="live-attendance" 
+              className="data-[state=active]:bg-red-800 data-[state=active]:text-white text-xs md:text-sm py-2"
+            >
+              <Radio className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+              <span className="hidden sm:inline">Live Monitor</span>
+              <span className="sm:hidden">Live</span>
             </TabsTrigger>
           </TabsList>
 
@@ -672,104 +656,105 @@ export default function AdminPortal() {
               </CardContent>
             </Card>
           </TabsContent>
-        </Tabs>
-      </div>
 
-      {/* Live Attendance Monitoring Dialog */}
-      <Dialog open={liveAttendanceOpen} onOpenChange={setLiveAttendanceOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold text-red-800 flex items-center gap-2">
-              <Radio className="w-6 h-6 text-red-600" />
-              Live Attendance Monitoring
-            </DialogTitle>
-            <DialogDescription>
-              Real-time RFID scan monitoring. New scans appear automatically.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="flex-1 overflow-hidden flex flex-col">
-            {/* Status indicator */}
-            <div className="flex items-center justify-between mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-sm font-medium text-green-800">Monitoring Active</span>
-              </div>
-              <Badge className="bg-green-100 text-green-800">
-                {attendanceRecords.length} Recent Scans
-              </Badge>
-            </div>
+          {/* Live Attendance Monitoring */}
+          <TabsContent value="live-attendance" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-red-800 flex items-center gap-2">
+                  <Radio className="w-5 h-5 text-red-600" />
+                  Live Attendance Monitoring
+                </CardTitle>
+                <CardDescription>
+                  Real-time RFID scan monitoring. New scans appear automatically.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {/* Status indicator */}
+                  <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-200">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                      <span className="text-sm font-medium text-green-800">Monitoring Active</span>
+                    </div>
+                    <Badge className="bg-green-100 text-green-800">
+                      {attendanceRecords.length} Recent Scans
+                    </Badge>
+                  </div>
 
-            {/* Attendance Records List */}
-            <div className="flex-1 overflow-y-auto border rounded-lg">
-              {loadingAttendance && attendanceRecords.length === 0 ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-800 mx-auto mb-4"></div>
-                    <p className="text-gray-600">Loading attendance records...</p>
-                  </div>
-                </div>
-              ) : attendanceRecords.length === 0 ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="text-center">
-                    <Radio className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600">No attendance records yet</p>
-                    <p className="text-sm text-gray-500 mt-2">Waiting for RFID scans...</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="divide-y">
-                  {attendanceRecords.map((record, index) => (
-                    <div
-                      key={record.id}
-                      className={`p-4 hover:bg-gray-50 transition-colors ${
-                        index === 0 && attendanceRecords.length > 1 ? "bg-green-50" : ""
-                      }`}
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                              <Users className="w-5 h-5 text-red-600" />
-                            </div>
-                            <div>
-                              <p className="font-semibold text-gray-900">{record.studentName}</p>
-                              <p className="text-sm text-gray-600">
-                                {record.studentId} • {record.gradeLevel} • {record.section}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex flex-col sm:items-end gap-2">
-                          <div className="flex items-center gap-2">
-                            <Badge className="bg-green-100 text-green-800">{record.status}</Badge>
-                            {index === 0 && attendanceRecords.length > 1 && (
-                              <Badge className="bg-blue-100 text-blue-800 animate-pulse">NEW</Badge>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-medium text-gray-900">
-                              {formatTime(record.scanTime)}
-                            </p>
-                            <p className="text-xs text-gray-500">{formatDate(record.scanTime)}</p>
-                          </div>
+                  {/* Attendance Records List */}
+                  <div className="border rounded-lg max-h-[600px] overflow-y-auto">
+                    {loadingAttendance && attendanceRecords.length === 0 ? (
+                      <div className="flex items-center justify-center py-12">
+                        <div className="text-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-800 mx-auto mb-4"></div>
+                          <p className="text-gray-600">Loading attendance records...</p>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    ) : attendanceRecords.length === 0 ? (
+                      <div className="flex items-center justify-center py-12">
+                        <div className="text-center">
+                          <Radio className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                          <p className="text-gray-600">No attendance records yet</p>
+                          <p className="text-sm text-gray-500 mt-2">Waiting for RFID scans...</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="divide-y">
+                        {attendanceRecords.map((record, index) => (
+                          <div
+                            key={record.id}
+                            className={`p-4 hover:bg-gray-50 transition-colors ${
+                              index === 0 && attendanceRecords.length > 1 ? "bg-green-50" : ""
+                            }`}
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-2">
+                                  <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                                    <Users className="w-5 h-5 text-red-600" />
+                                  </div>
+                                  <div>
+                                    <p className="font-semibold text-gray-900">{record.studentName}</p>
+                                    <p className="text-sm text-gray-600">
+                                      {record.studentId} • {record.gradeLevel} • {record.section}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex flex-col sm:items-end gap-2">
+                                <div className="flex items-center gap-2">
+                                  <Badge className="bg-green-100 text-green-800">{record.status}</Badge>
+                                  {index === 0 && attendanceRecords.length > 1 && (
+                                    <Badge className="bg-blue-100 text-blue-800 animate-pulse">NEW</Badge>
+                                  )}
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-sm font-medium text-gray-900">
+                                    {formatTime(record.scanTime)}
+                                  </p>
+                                  <p className="text-xs text-gray-500">{formatDate(record.scanTime)}</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
-            {/* Footer info */}
-            <div className="mt-4 pt-4 border-t">
-              <p className="text-xs text-gray-500 text-center">
-                Updates every 2 seconds • Latest scan at the top
-              </p>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+                  {/* Footer info */}
+                  <div className="pt-4 border-t">
+                    <p className="text-xs text-gray-500 text-center">
+                      Updates every 2 seconds • Latest scan at the top
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   )
 }
