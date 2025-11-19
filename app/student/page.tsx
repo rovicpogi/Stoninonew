@@ -7,6 +7,17 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import {
   LayoutDashboard,
   GraduationCap,
@@ -20,6 +31,10 @@ import {
   Menu,
   X,
   LogOut,
+  Upload,
+  Download,
+  CheckCircle,
+  Clock,
 } from "lucide-react"
 
 export default function StudentDashboard() {
@@ -27,6 +42,11 @@ export default function StudentDashboard() {
   const [studentData, setStudentData] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [assignments, setAssignments] = useState<any[]>([])
+  const [submissions, setSubmissions] = useState<any[]>([])
+  const [showSubmitDialog, setShowSubmitDialog] = useState(false)
+  const [selectedAssignment, setSelectedAssignment] = useState<any>(null)
+  const [submitFile, setSubmitFile] = useState<File | null>(null)
 
   useEffect(() => {
     // Load student data from localStorage
@@ -36,6 +56,83 @@ export default function StudentDashboard() {
     }
     setIsLoading(false)
   }, [])
+
+  useEffect(() => {
+    // Fetch assignments and submissions when on assignments tab
+    if (studentData && activeNav === "assignments") {
+      fetchAssignments()
+      fetchSubmissions()
+    }
+  }, [studentData, activeNav])
+
+  const fetchAssignments = async () => {
+    if (!studentData) return
+    try {
+      const params = new URLSearchParams()
+      if (studentData.grade_level) params.append("grade_level", studentData.grade_level)
+      if (studentData.section) params.append("section", studentData.section)
+      
+      const response = await fetch(`/api/student/assignments?${params.toString()}`)
+      const result = await response.json()
+      if (result.success) {
+        setAssignments(result.data || [])
+      }
+    } catch (error) {
+      console.error("Failed to fetch assignments:", error)
+    }
+  }
+
+  const fetchSubmissions = async () => {
+    if (!studentData?.email) return
+    try {
+      const response = await fetch(`/api/student/submissions?student_email=${encodeURIComponent(studentData.email)}`)
+      const result = await response.json()
+      if (result.success) {
+        setSubmissions(result.data || [])
+      }
+    } catch (error) {
+      console.error("Failed to fetch submissions:", error)
+    }
+  }
+
+  const handleSubmitAssignment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedAssignment || !submitFile || !studentData?.email) {
+      alert("Please select a file to submit")
+      return
+    }
+
+    const formData = new FormData()
+    formData.append("assignment_id", selectedAssignment.id)
+    formData.append("student_email", studentData.email)
+    formData.append("student_id", studentData.id || "")
+    formData.append("file", submitFile)
+
+    try {
+      const response = await fetch("/api/student/submissions", {
+        method: "POST",
+        body: formData,
+      })
+
+      const result = await response.json()
+      if (result.success) {
+        alert(result.message || "Assignment submitted successfully!")
+        setShowSubmitDialog(false)
+        setSelectedAssignment(null)
+        setSubmitFile(null)
+        fetchSubmissions()
+      } else {
+        alert("Error: " + result.error)
+      }
+    } catch (error) {
+      console.error("Submit error:", error)
+      alert("Failed to submit assignment")
+    }
+  }
+
+  const getSubmissionForAssignment = (assignmentId: string) => {
+    return submissions.find((s: any) => s.assignment_id === assignmentId)
+  }
 
   const handleLogout = () => {
     if (confirm("Are you sure you want to log out?")) {
@@ -175,6 +272,18 @@ export default function StudentDashboard() {
               </button>
 
               <button
+                onClick={() => setActiveNav("assignments")}
+                className={`w-full flex items-center px-3 py-2.5 text-left text-sm rounded-md transition-colors ${
+                  activeNav === "assignments"
+                    ? "bg-red-50 text-red-700 border-r-2 border-red-600"
+                    : "text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                <FileText className="w-4 h-4 mr-3" />
+                Assignments
+              </button>
+
+              <button
                 onClick={() => setActiveNav("grades")}
                 className={`w-full flex items-center px-3 py-2.5 text-left text-sm rounded-md transition-colors ${
                   activeNav === "grades"
@@ -260,6 +369,21 @@ export default function StudentDashboard() {
                   >
                     <Calendar className="w-4 h-4 mr-3" />
                     Schedule Calendar
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveNav("assignments")
+                      setMobileMenuOpen(false)
+                    }}
+                    className={`w-full flex items-center px-3 py-2.5 text-left text-sm rounded-md transition-colors ${
+                      activeNav === "assignments"
+                        ? "bg-red-50 text-red-700 border-r-2 border-red-600"
+                        : "text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    <FileText className="w-4 h-4 mr-3" />
+                    Assignments
                   </button>
 
                   <button
@@ -426,6 +550,217 @@ export default function StudentDashboard() {
                     </div>
                   </CardContent>
                 </Card>
+              </div>
+            </div>
+          )}
+
+          {activeNav === "assignments" && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">Assignments & Lessons</h2>
+                <p className="text-sm sm:text-base text-gray-600">View and submit your assignments</p>
+              </div>
+
+              <div className="space-y-4">
+                {assignments.length > 0 ? (
+                  assignments.map((assignment) => {
+                    const submission = getSubmissionForAssignment(assignment.id)
+                    const isOverdue = assignment.due_date && new Date(assignment.due_date) < new Date()
+                    const isSubmitted = !!submission
+
+                    return (
+                      <Card key={assignment.id} className="bg-white border border-gray-200">
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <CardTitle className="text-lg font-semibold text-gray-900">
+                                  {assignment.title}
+                                </CardTitle>
+                                <Badge variant={assignment.type === "assignment" ? "default" : "secondary"}>
+                                  {assignment.type}
+                                </Badge>
+                                {isSubmitted && (
+                                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                    <CheckCircle className="w-3 h-3 mr-1" />
+                                    Submitted
+                                  </Badge>
+                                )}
+                                {assignment.type === "assignment" && !isSubmitted && isOverdue && (
+                                  <Badge variant="destructive">Overdue</Badge>
+                                )}
+                              </div>
+                              {assignment.description && (
+                                <CardDescription className="mt-2">{assignment.description}</CardDescription>
+                              )}
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3">
+                            <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+                              {assignment.subject && <span>Subject: {assignment.subject}</span>}
+                              {assignment.grade_level && <span>Grade: {assignment.grade_level}</span>}
+                              {assignment.section && <span>Section: {assignment.section}</span>}
+                              {assignment.due_date && (
+                                <span className={isOverdue && !isSubmitted ? "text-red-600 font-medium" : ""}>
+                                  Due: {new Date(assignment.due_date).toLocaleString()}
+                                </span>
+                              )}
+                              <span>Posted: {new Date(assignment.created_at).toLocaleDateString()}</span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <a
+                                href={assignment.file_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-red-800 hover:underline flex items-center gap-1 text-sm font-medium"
+                              >
+                                <Download className="w-4 h-4" />
+                                Download {assignment.file_name}
+                              </a>
+                            </div>
+
+                            {assignment.type === "assignment" && (
+                              <div className="pt-3 border-t border-gray-200">
+                                {isSubmitted ? (
+                                  <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-sm font-medium text-gray-700">Your Submission:</span>
+                                      <Badge
+                                        variant={
+                                          submission?.status === "graded"
+                                            ? "default"
+                                            : submission?.status === "returned"
+                                            ? "secondary"
+                                            : "outline"
+                                        }
+                                      >
+                                        {submission?.status || "submitted"}
+                                      </Badge>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <a
+                                        href={submission?.file_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-sm text-red-800 hover:underline flex items-center gap-1"
+                                      >
+                                        <Download className="w-3 h-3" />
+                                        {submission?.file_name}
+                                      </a>
+                                      <span className="text-xs text-gray-500">
+                                        Submitted: {new Date(submission?.submitted_at).toLocaleString()}
+                                      </span>
+                                    </div>
+                                    {submission?.grade !== null && (
+                                      <div className="text-sm">
+                                        <span className="font-medium">Grade: </span>
+                                        <span className="text-red-800 font-semibold">
+                                          {submission.grade}/100
+                                        </span>
+                                      </div>
+                                    )}
+                                    {submission?.feedback && (
+                                      <div className="text-sm">
+                                        <span className="font-medium">Feedback: </span>
+                                        <span className="text-gray-700">{submission.feedback}</span>
+                                      </div>
+                                    )}
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        setSelectedAssignment(assignment)
+                                        setSubmitFile(null)
+                                        setShowSubmitDialog(true)
+                                      }}
+                                    >
+                                      <Upload className="w-4 h-4 mr-1" />
+                                      Resubmit
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <Dialog open={showSubmitDialog} onOpenChange={setShowSubmitDialog}>
+                                    <DialogTrigger asChild>
+                                      <Button
+                                        className="bg-red-800 hover:bg-red-700"
+                                        onClick={() => setSelectedAssignment(assignment)}
+                                      >
+                                        <Upload className="w-4 h-4 mr-2" />
+                                        Submit Assignment
+                                      </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                      <DialogHeader>
+                                        <DialogTitle>Submit Assignment</DialogTitle>
+                                        <DialogDescription>
+                                          Upload your completed assignment file
+                                        </DialogDescription>
+                                      </DialogHeader>
+                                      {selectedAssignment && (
+                                        <form onSubmit={handleSubmitAssignment} className="space-y-4">
+                                          <div>
+                                            <Label>Assignment: {selectedAssignment.title}</Label>
+                                            {selectedAssignment.due_date && (
+                                              <p className="text-sm text-gray-600 mt-1">
+                                                Due: {new Date(selectedAssignment.due_date).toLocaleString()}
+                                              </p>
+                                            )}
+                                          </div>
+                                          <div>
+                                            <Label htmlFor="submit-file">Upload File *</Label>
+                                            <Input
+                                              id="submit-file"
+                                              type="file"
+                                              onChange={(e) => setSubmitFile(e.target.files?.[0] || null)}
+                                              required
+                                            />
+                                            {submitFile && (
+                                              <p className="text-sm text-gray-600 mt-1">
+                                                Selected: {submitFile.name}
+                                              </p>
+                                            )}
+                                          </div>
+                                          <div className="flex gap-2">
+                                            <Button type="submit" className="flex-1 bg-red-800 hover:bg-red-700">
+                                              <Upload className="w-4 h-4 mr-2" />
+                                              Submit
+                                            </Button>
+                                            <Button
+                                              type="button"
+                                              variant="outline"
+                                              onClick={() => {
+                                                setShowSubmitDialog(false)
+                                                setSelectedAssignment(null)
+                                                setSubmitFile(null)
+                                              }}
+                                            >
+                                              Cancel
+                                            </Button>
+                                          </div>
+                                        </form>
+                                      )}
+                                    </DialogContent>
+                                  </Dialog>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })
+                ) : (
+                  <Card className="bg-white border border-gray-200">
+                    <CardContent className="py-8">
+                      <div className="text-center text-gray-500">
+                        No assignments or lessons available yet.
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </div>
           )}
